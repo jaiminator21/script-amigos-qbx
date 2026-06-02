@@ -5,7 +5,7 @@ Sistema de **amigos** para Qbox (`qbx_core`).
 - Nombre **"Desconocido"** sobre la cabeza de quienes no son tus amigos.
 - Nombre real sobre tus amigos (configurable para **no mostrar nada**).
 - Solicitudes de amistad mediante **ox_target**.
-- **Exports** para que tu chat (`/me`, `/do`, etc.) muestre *Desconocido* en lugar del nombre cuando no hay amistad.
+- **Exports** para que tu chat (`/me`, `/do`, etc.) muestre _Desconocido_ en lugar del nombre cuando no hay amistad.
 
 ## Dependencias
 
@@ -29,12 +29,12 @@ Sistema de **amigos** para Qbox (`qbx_core`).
 
 ## Uso
 
-| Acción | Cómo |
-|--------|------|
-| Añadir amigo | Apunta a un jugador con **ox_target** → *Añadir como amigo* |
-| Aceptar/rechazar | Diálogo de `ox_lib` al recibir la solicitud |
-| Eliminar amigo | **ox_target** → *Eliminar amigo*, o desde `/amigos` |
-| Ver lista | Comando `/amigos` |
+| Acción           | Cómo                                                        |
+| ---------------- | ----------------------------------------------------------- |
+| Añadir amigo     | Apunta a un jugador con **ox_target** → _Añadir como amigo_ |
+| Aceptar/rechazar | Diálogo de `ox_lib` al recibir la solicitud                 |
+| Eliminar amigo   | **ox_target** → _Eliminar amigo_, o desde `/amigos`         |
+| Ver lista        | Comando `/amigos`                                           |
 
 > Si quieres que tus amigos **no** muestren ningún nombre sobre la cabeza,
 > pon `Config.Overhead.showFriendName = false`.
@@ -124,16 +124,16 @@ amigos:GetCustomUnknownHeadText(playerId) --> "Desconocido"
 
 1. Abre la **config del servidor** de jgs-chat (normalmente
    `jgs-chat/config.lua` o `jgs-chat/server/config.lua`, según tu versión —
-   busca la tabla de *scripts compatibles* / *friend scripts*).
+   busca la tabla de _scripts compatibles_ / _friend scripts_).
 
 2. Añade una entrada con el **nombre exacto del recurso** (`script-amigos-qbx`)
    como `ScriptName`:
 
    ```lua
    -- dentro de la tabla de scripts compatibles de jgs-chat
-   ['script-amigos-qbx'] = {
-       Enable     = true,
-       ScriptName = 'script-amigos-qbx',
+   ['abp_headFriend'] = {
+        Enable = true,
+        ScriptName = 'script-amigos-qbx'
    },
    ```
 
@@ -151,7 +151,7 @@ amigos:GetCustomUnknownHeadText(playerId) --> "Desconocido"
 
 4. Reinicia ambos recursos (o el servidor). Prueba en juego: con dos jugadores
    que **no** sean amigos, un `/me` o `/do` de uno debe aparecerle al otro como
-   **"Desconocido"**; tras aceptar la amistad (ox_target → *Añadir como amigo*),
+   **"Desconocido"**; tras aceptar la amistad (ox_target → _Añadir como amigo_),
    pasará a verse el nombre real.
 
 > El texto de "desconocido" se controla con `Config.UnknownLabel` en

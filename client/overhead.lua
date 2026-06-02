@@ -2,14 +2,16 @@
 --  DIBUJO DE TEXTO 3D
 -----------------------------------------------------------------------
 
-local function draw3DText(coords, text, scale, color)
-    local onScreen, x, y = World3dToScreen2d(coords.x, coords.y, coords.z)
-    if not onScreen then return end
+-- Dibuja texto 3D y devuelve `true` si quedó EN PANTALLA (visible).
+-- Devolver la visibilidad permite al bucle dormir cuando no hay nada que ver.
+local function draw3DText(x3, y3, z3, text, scale, r, g, b, a)
+    local onScreen, sx, sy = World3dToScreen2d(x3, y3, z3)
+    if not onScreen then return false end
 
     SetTextScale(scale, scale)
     SetTextFont(4)
     SetTextProportional(true)
-    SetTextColour(color.r, color.g, color.b, color.a or 215)
+    SetTextColour(r, g, b, a)
     SetTextDropshadow(0, 0, 0, 0, 255)
     SetTextEdge(2, 0, 0, 0, 150)
     SetTextDropShadow()
@@ -17,61 +19,94 @@ local function draw3DText(coords, text, scale, color)
     SetTextEntry('STRING')
     SetTextCentre(true)
     AddTextComponentString(text)
-    DrawText(x, y)
+    DrawText(sx, sy)
+    return true
 end
 
 -----------------------------------------------------------------------
 --  NOMBRE SOBRE LA CABEZA
 -----------------------------------------------------------------------
 
-if Config.Overhead.enabled then
+-- Solo arrancamos el hilo si hay ALGO que pueda llegar a dibujarse alguna vez.
+local canDrawFriends  = Config.Overhead.showFriendName
+local canDrawUnknown  = Config.Overhead.showUnknown
+local overheadActive  = Config.Overhead.enabled and (canDrawFriends or canDrawUnknown)
+
+if overheadActive then
     CreateThread(function()
-        local cfg = Config.Overhead
+        local cfg      = Config.Overhead
+        local maxDist  = cfg.distance
+        local maxDistSq= maxDist * maxDist        -- comparamos al cuadrado (sin sqrt)
+        local invDist  = 1.0 / maxDist            -- para el fade, sin dividir cada frame
+        local height   = cfg.height
+        local scale    = cfg.scale
+        local fcol     = cfg.color                -- color amigo
+        local ucol     = cfg.unknownColor         -- color desconocido
+        local fBaseA   = fcol.a or 215
+        local uBaseA   = ucol.a or 180
+        local label    = Config.UnknownLabel
+
         while true do
-            local sleep = 500
-            local myPed = PlayerPedId()
+            local myPed    = PlayerPedId()
             local myCoords = GetEntityCoords(myPed)
+            local mx, my, mz = myCoords.x, myCoords.y, myCoords.z
+
+            local drewSomething = false   -- ¿algo VISIBLE en pantalla este frame?
+            local someoneNear   = false   -- ¿alguien dentro de rango (aunque off-screen)?
 
             for _, playerIdx in ipairs(GetActivePlayers()) do
                 local ped = GetPlayerPed(playerIdx)
                 if ped ~= myPed and ped ~= 0 and not IsEntityDead(ped) then
-                    local coords = GetEntityCoords(ped)
-                    local dist = #(myCoords - coords)
+                    local pc = GetEntityCoords(ped)
+                    local dx, dy, dz = pc.x - mx, pc.y - my, pc.z - mz
+                    local distSq = dx * dx + dy * dy + dz * dz
 
-                    if dist <= cfg.distance then
-                        sleep = 0
+                    if distSq <= maxDistSq then
+                        someoneNear = true
+
                         local serverId = GetPlayerServerId(playerIdx)
-                        local friend = GetFriendInfo(serverId)
+                        local friend   = GetFriendInfo(serverId)
 
-                        -- Si lleva máscara ocultante, no es identificable:
-                        -- se trata como un desconocido aunque sea amigo.
+                        -- Máscara ocultante: un amigo enmascarado se trata como
+                        -- desconocido (no identificable).
                         if friend and IsPedMasked(ped) then
                             friend = nil
                         end
 
-                        local text, color
+                        local text, br, bg, bb, baseA
                         if friend then
-                            if cfg.showFriendName then
+                            if canDrawFriends then
                                 text  = friend.name
-                                color = cfg.color
+                                br, bg, bb, baseA = fcol.r, fcol.g, fcol.b, fBaseA
                             end
-                        elseif cfg.showUnknown then
-                            text  = Config.UnknownLabel
-                            color = cfg.unknownColor
+                        elseif canDrawUnknown then
+                            text  = label
+                            br, bg, bb, baseA = ucol.r, ucol.g, ucol.b, uBaseA
                         end
 
                         if text then
-                            local head = coords + vector3(0.0, 0.0, cfg.height)
-                            -- Atenúa la opacidad con la distancia
-                            local fade = 1.0 - (dist / cfg.distance) * 0.45
-                            local c = { r = color.r, g = color.g, b = color.b, a = math.floor((color.a or 215) * fade) }
-                            draw3DText(head, text, cfg.scale, c)
+                            -- Atenúa opacidad con la distancia (sqrt solo aquí).
+                            local fade = 1.0 - (math.sqrt(distSq) * invDist) * 0.45
+                            local a    = math.floor(baseA * fade)
+                            if draw3DText(pc.x, pc.y, pc.z + height, text, scale, br, bg, bb, a) then
+                                drewSomething = true
+                            end
                         end
                     end
                 end
             end
 
-            Wait(sleep)
+            -- Sleep adaptativo:
+            --   - Algo visible en pantalla  -> 0  (el texto 3D necesita cada frame)
+            --   - Gente cerca pero off-screen-> ~120 ms (responde al girar cámara)
+            --   - Nadie cerca               -> 500 ms (reposo)
+            if drewSomething then
+                Wait(0)
+            elseif someoneNear then
+                Wait(120)
+            else
+                Wait(500)
+            end
         end
     end)
 end
