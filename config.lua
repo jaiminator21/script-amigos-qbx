@@ -34,6 +34,27 @@ Config.Overhead = {
 }
 
 -----------------------------------------------------------------------
+--  MÁSCARAS (ocultar identidad)
+-----------------------------------------------------------------------
+-- Si un jugador lleva una máscara que oculta el rostro, NO se le puede
+-- identificar: su nombre se oculta (se ve "Desconocido") incluso para sus
+-- amigos. Hay "máscaras" que en realidad son bufandas, barbas, pasamontañas
+-- abiertos, etc. y NO ocultan la identidad: añade esos IDs de drawable a
+-- `allowed` para que el nombre SÍ se siga mostrando.
+
+Config.Mask = {
+    enabled   = true,   -- false = no comprobar máscaras nunca
+    component = 1,      -- componente del ped para la máscara (1 = máscaras/cara)
+
+    -- Drawables del componente de máscara que NO ocultan la identidad.
+    -- El drawable 0 (sin máscara) siempre se considera "identificable".
+    -- Ojo: los IDs pueden diferir entre modelo masculino y femenino; si usas
+    -- ambos, añade aquí los IDs que correspondan a prendas NO ocultantes.
+    -- Ejemplo:  allowed = { 5, 12, 47 },
+    allowed   = {},
+}
+
+-----------------------------------------------------------------------
 --  OX_TARGET
 -----------------------------------------------------------------------
 
@@ -58,7 +79,7 @@ Config.Requests = {
 
 Config.Text = {
     targetAdd        = 'Añadir como amigo',
-    targetRemove     = 'Eliminar amigo',
+    targetRemove     = 'Eliminar amistad',
 
     requestSent      = 'Solicitud de amistad enviada a %s',
     requestReceived  = '%s quiere ser tu amigo',

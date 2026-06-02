@@ -34,15 +34,38 @@ local function areFriends(cidA, cidB)
     return Friends[cidA] ~= nil and Friends[cidA][cidB] == true
 end
 
----Envía al cliente su set de amigos (array de cids) y refresca su statebag.
+---Envía al cliente su set de amigos ONLINE ya resueltos { id, cid, name }
+---y refresca su statebag. El cliente indexa por server id para el overhead
+---y el ox_target, así que solo enviamos amigos conectados (los offline no
+---tienen ped ni server id).
 local function syncClient(src, cid)
     local list = {}
     if Friends[cid] then
         for friendCid in pairs(Friends[cid]) do
-            list[#list + 1] = friendCid
+            local online = qbx:GetPlayerByCitizenId(friendCid)
+            if online then
+                list[#list + 1] = {
+                    id   = online.PlayerData.source,
+                    cid  = friendCid,
+                    name = getName(online),
+                }
+            end
         end
     end
     TriggerClientEvent('amigos:client:setFriends', src, list)
+end
+
+---Avisa a los amigos ONLINE del personaje `cid` de que el server id `src`
+---deja de representar a ese personaje (se desconecta o cambia de personaje),
+---para que limpien su FriendById y no muestren un nombre obsoleto.
+local function notifyFriendsOffline(cid, src)
+    if not cid or not Friends[cid] then return end
+    for friendCid in pairs(Friends[cid]) do
+        local friendSrc = getSourceByCid(friendCid)
+        if friendSrc then
+            TriggerClientEvent('amigos:client:friendOffline', friendSrc, src)
+        end
+    end
 end
 
 ---Carga las amistades de un cid desde la BD a la caché.
@@ -133,20 +156,43 @@ RegisterNetEvent('amigos:server:playerReady', function()
     local player, cid = getPlayer(src)
     if not player then return end
 
+    -- Las amistades son por PERSONAJE (citizenid). Si el jugador venía de otro
+    -- personaje en este mismo slot, avisamos a los amigos de aquel personaje
+    -- de que su server id ya no lo representa, antes de cargar el nuevo.
+    local prev = Player(src).state.amigos
+    if prev and prev.cid and prev.cid ~= cid then
+        notifyFriendsOffline(prev.cid, src)
+    end
+
     if not Friends[cid] then loadFriends(cid) end
 
-    -- Statebag con la info pública del jugador (cid + nombre real)
+    -- Statebag con la info pública del personaje (cid + nombre real)
     Player(src).state:set('amigos', {
         cid  = cid,
         name = getName(player),
     }, true)
 
     syncClient(src, cid)
+
+    -- Re-sincronizar a los amigos que YA estaban conectados para que vean
+    -- a este personaje (su FriendById no se actualiza por sí solo).
+    if Friends[cid] then
+        for friendCid in pairs(Friends[cid]) do
+            local friendSrc = getSourceByCid(friendCid)
+            if friendSrc then syncClient(friendSrc, friendCid) end
+        end
+    end
 end)
 
 AddEventHandler('playerDropped', function()
     local src = source
     Pending[src] = nil
+
+    -- Avisar a los amigos online para que quiten a este personaje de su
+    -- FriendById (su server id quedaría obsoleto). Tomamos el cid del statebag.
+    local info = Player(src).state.amigos
+    notifyFriendsOffline(info and info.cid, src)
+
     -- Mantenemos la caché de amistades cargada por si reentra rápido; QBX no
     -- nos da el cid aquí de forma fiable, así que no la limpiamos.
 end)

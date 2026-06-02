@@ -43,6 +43,12 @@ if Config.Overhead.enabled then
                         local serverId = GetPlayerServerId(playerIdx)
                         local friend = GetFriendInfo(serverId)
 
+                        -- Si lleva máscara ocultante, no es identificable:
+                        -- se trata como un desconocido aunque sea amigo.
+                        if friend and IsPedMasked(ped) then
+                            friend = nil
+                        end
+
                         local text, color
                         if friend then
                             if cfg.showFriendName then

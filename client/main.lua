@@ -20,6 +20,30 @@ function IsFriendLocal(serverId)
     return FriendById[serverId] ~= nil
 end
 
+-- Set de drawables de máscara permitidos (no ocultan identidad), para O(1).
+local MaskAllowed = {}
+for _, drawable in ipairs(Config.Mask.allowed or {}) do
+    MaskAllowed[drawable] = true
+end
+
+-- ¿El ped lleva una máscara que oculta su identidad?
+-- true  = lleva máscara ocultante → no se debe mostrar el nombre.
+-- false = sin máscara, o una "máscara" permitida (bufanda, barba, etc.).
+function IsPedMasked(ped)
+    if not Config.Mask.enabled then return false end
+    if not ped or ped == 0 then return false end
+    local drawable = GetPedDrawableVariation(ped, Config.Mask.component)
+    if drawable == 0 then return false end          -- sin máscara
+    return not MaskAllowed[drawable]                 -- permitida → no oculta
+end
+
+-- Ped de un jugador a partir de su server id (0 si no está disponible).
+function PedFromServerId(serverId)
+    local playerIdx = GetPlayerFromServerId(serverId)
+    if playerIdx == -1 then return 0 end
+    return GetPlayerPed(playerIdx)
+end
+
 -----------------------------------------------------------------------
 --  INICIALIZACIÓN / SINCRONIZACIÓN
 -----------------------------------------------------------------------
@@ -39,6 +63,11 @@ RegisterNetEvent('amigos:client:setFriends', function(list)
         map[f.id] = { name = f.name, cid = f.cid }
     end
     FriendById = map
+end)
+
+-- Un amigo se desconectó: quitamos su server id para no mostrar datos obsoletos.
+RegisterNetEvent('amigos:client:friendOffline', function(serverId)
+    FriendById[tonumber(serverId)] = nil
 end)
 
 CreateThread(function()
@@ -181,7 +210,7 @@ exports('GetDisplayName', function(serverId, unknownLabel)
         if data and data.charinfo then return Config.NameFormat(data.charinfo) end
     end
     local info = GetFriendInfo(serverId)
-    if info then return info.name end
+    if info and not IsPedMasked(PedFromServerId(serverId)) then return info.name end
     return unknownLabel or Config.UnknownLabel
 end)
 
@@ -193,6 +222,6 @@ end)
 exports('areFriends', function(serverId)
     serverId = tonumber(serverId)
     local info = GetFriendInfo(serverId)
-    if not info then return false end
+    if not info or IsPedMasked(PedFromServerId(serverId)) then return false end
     return { friend = true, headtext = info.name, unknown = Config.UnknownLabel }
 end)
