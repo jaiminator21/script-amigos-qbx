@@ -41,13 +41,12 @@ if Config.Overhead.enabled then
                     if dist <= cfg.distance then
                         sleep = 0
                         local serverId = GetPlayerServerId(playerIdx)
-                        local isFriend = IsFriendLocal(serverId)
+                        local friend = GetFriendInfo(serverId)
 
                         local text, color
-                        if isFriend then
+                        if friend then
                             if cfg.showFriendName then
-                                local info = GetAmigoState(serverId)
-                                text  = info and info.name or nil
+                                text  = friend.name
                                 color = cfg.color
                             end
                         elseif cfg.showUnknown then

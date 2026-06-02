@@ -1,7 +1,8 @@
 local qbx = exports.qbx_core
 
--- Set de citizenids amigos del jugador local:  LocalFriends[cid] = true
-LocalFriends = {}
+-- Amigos ONLINE del jugador local, ya resueltos por el servidor:
+--   FriendById[serverId] = { name = '...', cid = '...' }
+FriendById = {}
 -- citizenid del jugador local
 MyCid = nil
 
@@ -9,16 +10,14 @@ MyCid = nil
 --  HELPERS COMPARTIDOS (usados también por overhead.lua)
 -----------------------------------------------------------------------
 
--- Info pública (cid/nombre) de un jugador por su server id, vía statebag.
-function GetAmigoState(serverId)
-    return Player(serverId).state.amigos
+-- Info del amigo (nombre/cid) por su server id, o nil si no es amigo / offline.
+function GetFriendInfo(serverId)
+    return FriendById[serverId]
 end
 
 -- ¿El jugador local es amigo de este server id?
 function IsFriendLocal(serverId)
-    local info = GetAmigoState(serverId)
-    if not info or not info.cid then return false end
-    return LocalFriends[info.cid] == true
+    return FriendById[serverId] ~= nil
 end
 
 -----------------------------------------------------------------------
@@ -34,10 +33,12 @@ end
 AddEventHandler('QBX:Client:OnPlayerLoaded', init)
 
 RegisterNetEvent('amigos:client:setFriends', function(list)
-    LocalFriends = {}
+    local map = {}
     for i = 1, #list do
-        LocalFriends[list[i]] = true
+        local f = list[i]
+        map[f.id] = { name = f.name, cid = f.cid }
     end
+    FriendById = map
 end)
 
 CreateThread(function()
@@ -166,7 +167,7 @@ end
 
 -- ¿Es amigo del jugador local? (por server id) → boolean
 exports('IsFriend', function(serverId)
-    return IsFriendLocal(serverId)
+    return IsFriendLocal(tonumber(serverId))
 end)
 
 -- *** Export principal para chats ***
@@ -175,10 +176,12 @@ end)
 -- Acepta un 2º arg opcional `unknownLabel` para sobrescribir el texto.
 exports('GetDisplayName', function(serverId, unknownLabel)
     serverId = tonumber(serverId)
-    local info = GetAmigoState(serverId)
-    if info and (isLocal(serverId) or LocalFriends[info.cid]) then
-        return info.name
+    if isLocal(serverId) then
+        local data = qbx:GetPlayerData()
+        if data and data.charinfo then return Config.NameFormat(data.charinfo) end
     end
+    local info = GetFriendInfo(serverId)
+    if info then return info.name end
     return unknownLabel or Config.UnknownLabel
 end)
 
@@ -189,10 +192,7 @@ end)
 --   local name = f and f.headtext or "Desconocido"
 exports('areFriends', function(serverId)
     serverId = tonumber(serverId)
-    local info = GetAmigoState(serverId)
+    local info = GetFriendInfo(serverId)
     if not info then return false end
-    if isLocal(serverId) or LocalFriends[info.cid] then
-        return { friend = true, headtext = info.name, unknown = Config.UnknownLabel }
-    end
-    return false
+    return { friend = true, headtext = info.name, unknown = Config.UnknownLabel }
 end)

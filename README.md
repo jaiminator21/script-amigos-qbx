@@ -124,5 +124,7 @@ local name = f and f.headtext or 'Desconocido'
 
 - La amistad es **bidireccional**: se guardan ambas direcciones (`A→B` y `B→A`)
   para que las consultas por `citizenid` sean directas e indexadas.
-- La info pública (cid + nombre) viaja por un **statebag** replicado
-  (`Player(id).state.amigos`), no por eventos por frame.
+- El servidor envía a cada cliente sus amigos **online** ya resueltos como
+  `serverId → nombre`, y reenvía esa lista a los afectados en tiempo real
+  cuando alguien **acepta una amistad, se conecta o se desconecta**. Así el
+  nombre sobre la cabeza se actualiza al instante, sin recargar ni relogear.
