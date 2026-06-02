@@ -382,3 +382,69 @@ end)
 exports('GetDisplayNameForViewer', function(viewerSrc, targetSrc)
     return displayNameFor(viewerSrc, targetSrc)
 end)
+
+-----------------------------------------------------------------------
+--  INTEGRACIÓN jgs-chat  (compatibilidad estilo abp_headFriend)
+-----------------------------------------------------------------------
+-- jgs-chat detecta este recurso mediante su config de scripts compatibles
+-- (ver README) y, del lado SERVIDOR, llama a estos exports:
+--
+--     exports[ScriptName]:getUserId(source)                -> identifier guardado
+--     exports[ScriptName]:AreFriend(fromId, toId)          -> bool
+--     exports[ScriptName]:GetCustomHeadText(playerId)      -> nombre real
+--     exports[ScriptName]:GetCustomUnknownHeadText(playerId)-> "Desconocido"
+--
+-- ScriptName debe ser 'script-amigos-qbx' (el nombre del recurso) y los
+-- nombres de export se respetan TAL CUAL: AreFriend, GetCustomHeadText y
+-- GetCustomUnknownHeadText empiezan en MAYÚSCULA (igual que abp_headFriend);
+-- getUserId va en minúscula.
+--
+-- CLAVE: el identifier que aquí devolvemos (citizenid) es EXACTAMENTE el que
+-- guardamos en player_friends.citizenid / friend_citizenid. jgs-chat obtiene
+-- los identifiers de emisor y receptor con nuestro getUserId y luego se los
+-- pasa a AreFriend, así que ambos formatos coinciden siempre.
+
+-- Identifier que guardamos en player_friends = citizenid del personaje (QBX).
+function getUserId(source)
+    local player = qbx:GetPlayer(tonumber(source))
+    return player and player.PlayerData.citizenid or nil
+end
+exports('getUserId', getUserId)
+
+-- ¿Son amigos? Recibe DOS identifiers (citizenids), no sources.
+-- Usa la caché en memoria y, si el cid no está cargado, cae a la BD.
+function AreFriend(from, to)
+    if not from or not to then return false end
+    if from == to then return true end
+
+    -- Caché en memoria (se mantiene en ambas direcciones)
+    if Friends[from] ~= nil then
+        return Friends[from][to] == true
+    end
+    if Friends[to] ~= nil then
+        return Friends[to][from] == true
+    end
+
+    -- Fallback a la base de datos (oxmysql) si ninguno está en caché.
+    local row = MySQL.single.await(
+        'SELECT 1 FROM player_friends WHERE (citizenid = ? AND friend_citizenid = ?) OR (citizenid = ? AND friend_citizenid = ?) LIMIT 1',
+        { from, to, to, from }
+    )
+    return row ~= nil
+end
+exports('AreFriend', AreFriend)
+
+-- Nombre real del personaje (lo que ven los AMIGOS). Recibe un source.
+function GetCustomHeadText(playerId)
+    local player = qbx:GetPlayer(tonumber(playerId))
+    if not player then return Config.UnknownLabel end
+    return getName(player)
+end
+exports('GetCustomHeadText', GetCustomHeadText)
+
+-- Texto para quien NO es amigo del emisor. Recibe un source (no se usa, pero
+-- jgs-chat lo pasa); devuelve siempre la etiqueta de "desconocido".
+function GetCustomUnknownHeadText(playerId)
+    return Config.UnknownLabel
+end
+exports('GetCustomUnknownHeadText', GetCustomUnknownHeadText)

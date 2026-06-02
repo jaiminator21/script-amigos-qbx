@@ -85,6 +85,78 @@ RegisterCommand('say', function(source, args)
 end, false)
 ```
 
+## Integración con jgs-chat (`/me`, `/do` → "Desconocido")
+
+jgs-chat puede ocultar el nombre del personaje y mostrar **"Desconocido"** en
+`/me` y `/do` cuando el receptor **no** es amigo del emisor, exactamente igual
+que con `abp_headFriend`. La integración es **100 % del lado servidor**: jgs-chat
+detecta este recurso y le pide los identifiers y la decisión de amistad.
+
+### Exports que expone este recurso (lo que jgs-chat consume)
+
+```lua
+local amigos = exports['script-amigos-qbx']
+
+-- Identifier del jugador (= citizenid de QBX, lo que guardamos en player_friends)
+amigos:getUserId(source)                  --> string | nil
+
+-- ¿Son amigos? Recibe DOS identifiers (citizenids), NO sources
+amigos:AreFriend(fromId, toId)            --> boolean
+
+-- Nombre real del personaje (lo que ven los amigos). Recibe un source
+amigos:GetCustomHeadText(playerId)        --> string
+
+-- Texto para los que NO son amigos. Recibe un source
+amigos:GetCustomUnknownHeadText(playerId) --> "Desconocido"
+```
+
+> **Casing de los exports** — jgs-chat los invoca tal cual, igual que en
+> `abp_headFriend`: `AreFriend`, `GetCustomHeadText` y `GetCustomUnknownHeadText`
+> empiezan en **MAYÚSCULA**; `getUserId` va en **minúscula**. No los renombres.
+
+> **Por qué coinciden los identifiers** — jgs-chat obtiene el identifier de
+> emisor y receptor con **nuestro** `getUserId` (que devuelve el `citizenid`) y
+> luego se los pasa a `AreFriend`. Como `AreFriend` consulta `player_friends`
+> por ese mismo `citizenid`, el formato siempre coincide y las amistades se
+> detectan correctamente.
+
+### Pasos para registrar el script en jgs-chat
+
+1. Abre la **config del servidor** de jgs-chat (normalmente
+   `jgs-chat/config.lua` o `jgs-chat/server/config.lua`, según tu versión —
+   busca la tabla de *scripts compatibles* / *friend scripts*).
+
+2. Añade una entrada con el **nombre exacto del recurso** (`script-amigos-qbx`)
+   como `ScriptName`:
+
+   ```lua
+   -- dentro de la tabla de scripts compatibles de jgs-chat
+   ['script-amigos-qbx'] = {
+       Enable     = true,
+       ScriptName = 'script-amigos-qbx',
+   },
+   ```
+
+   > El `ScriptName` **debe** ser el nombre de la carpeta/recurso, porque
+   > jgs-chat hace `exports[ScriptName]:AreFriend(from, to)`. Si la carpeta se
+   > llama distinto, usa ese nombre aquí (y en `ensure`).
+
+3. Asegúrate de que jgs-chat **arranque después** de este recurso para que los
+   exports existan. En `server.cfg`:
+
+   ```cfg
+   ensure script-amigos-qbx
+   ensure jgs-chat
+   ```
+
+4. Reinicia ambos recursos (o el servidor). Prueba en juego: con dos jugadores
+   que **no** sean amigos, un `/me` o `/do` de uno debe aparecerle al otro como
+   **"Desconocido"**; tras aceptar la amistad (ox_target → *Añadir como amigo*),
+   pasará a verse el nombre real.
+
+> El texto de "desconocido" se controla con `Config.UnknownLabel` en
+> [config.lua](config.lua) (por defecto `'Desconocido'`).
+
 ### Cliente (para integrar en chats: /me, /do, etc.)
 
 Este es el patrón que usan `abp_headFriend` y los chats tipo jgs: el chat
